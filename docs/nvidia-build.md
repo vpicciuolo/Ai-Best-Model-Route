@@ -204,13 +204,14 @@ Check the local router:
 curl --fail http://127.0.0.1/health
 ```
 
-The exact virtual key used by Codex is stored in the managed `ai-best-route` provider block in:
+The exact local virtual key is stored in two protected local places:
 
 ```text
+~/.config/ai-best-model-route/virtual-key
 ~/.codex/config.toml
 ```
 
-Do not paste that key into public logs.
+The dedicated `virtual-key` file is the easiest source for SDKs and other local clients. Do not paste that key into public logs.
 
 A catalog request through the router should include NVIDIA Build entries after the provider has hydrated its authenticated model catalog.
 
