@@ -27,20 +27,26 @@ Virtual routes are injected into the Codex model catalog.
 Point the client at ABMR and use a virtual model:
 
 ```python
+from pathlib import Path
 from openai import OpenAI
+
+virtual_key = Path("~/.config/ai-best-model-route/virtual-key").expanduser().read_text().strip()
 
 client = OpenAI(
     base_url="http://127.0.0.1/v1",
-    api_key="YOUR_LOCAL_VIRTUAL_KEY",
+    api_key="abmr-managed-provider",
+    default_headers={"x-bf-vk": virtual_key},
 )
 
 response = client.responses.create(
-    model="auto:quality",
+    model="nvidia-build/<model-id-from-your-catalog>",
     input="Analyze the incident timeline and identify the most likely root cause.",
 )
 ```
 
-Use the authentication header required by your deployment. The supplied local quickstart uses a Bifrost virtual key.
+The placeholder `api_key` satisfies SDK validation and is stripped before a Bifrost-managed provider call. The local gateway authorization is the `x-bf-vk` header.
+
+Use `auto:*` from a generic SDK when the eligible routing candidates are compatible with that client. The built-in OpenAI **Codex login passthrough** is intentionally Codex-specific. For standalone OpenAI API access, configure a separate Bifrost-managed OpenAI API provider with its own provider secret.
 
 ## JavaScript / TypeScript SDKs
 
