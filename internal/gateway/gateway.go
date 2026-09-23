@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +21,8 @@ import (
 )
 
 const chatGPTResponsesPath = "/chatgpt_passthrough/backend-api/codex/responses"
+
+type routeModelContextKey struct{}
 
 // Handler dispatches Codex wire requests without translating native OpenAI
 // traffic. Bifrost's dedicated ChatGPT passthrough owns the raw OpenAI path;
@@ -49,7 +52,7 @@ func New(cfg config.Config, bifrostURL, chatGPTURL string) (*Handler, error) {
 	proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, proxyErr error) {
 		writeError(w, http.StatusBadGateway, "upstream_unavailable", proxyErr.Error())
 	}
-	return &Handler{
+	handler := &Handler{
 		cfg:             cfg,
 		bifrostURL:      bifrost,
 		chatGPTURL:      chatGPT,
@@ -58,7 +61,17 @@ func New(cfg config.Config, bifrostURL, chatGPTURL string) (*Handler, error) {
 		chatGPTModelURL: "/backend-api/codex/models",
 		metadataLookup:  editorial.NewOpenRouterResolver().LookupMetadata,
 		routeEngine:     autoroute.New(cfg),
-	}, nil
+	}
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		if handler.routeEngine == nil || resp == nil || resp.Request == nil {
+			return nil
+		}
+		if model, ok := resp.Request.Context().Value(routeModelContextKey{}).(string); ok && model != "" {
+			handler.routeEngine.Observe(model, resp.StatusCode)
+		}
+		return nil
+	}
+	return handler, nil
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -95,6 +108,7 @@ func (h *Handler) serveResponses(w http.ResponseWriter, req *http.Request) {
 		writeError(w, http.StatusBadRequest, "unresolved_model", err.Error())
 		return
 	}
+	req = req.WithContext(context.WithValue(req.Context(), routeModelContextKey{}, resolved.Slug))
 	if resolved.Provider.CredentialMode == config.CredentialRequestPassthrough {
 		routed, err = rewriteModel(routed, resolved.UpstreamModel)
 		if err != nil {
