@@ -19,7 +19,7 @@ Open this repository in Codex and describe the outcome at any level of detail:
 That starts requirements gathering. Codex should ask which provider plans or
 API accounts you want to add and any provider-specific scope it cannot safely
 infer. It always retains OpenAI through your Codex login, detects and preserves
-an existing router setup, and defaults new threads to `gpt-5.6-sol` with
+an existing router setup, and defaults new threads to `auto` with
 `medium` reasoning. It does not ask you to make those decisions. It then
 researches current provider documentation and account-visible models rather
 than requiring you to supply Bifrost configuration.
@@ -60,7 +60,7 @@ After requirements and credentials are complete, Codex invokes:
 ```
 
 Humans normally do not need to construct this command. The executor defaults to
-`gpt-5.6-sol` with `medium` reasoning; model flags are used only for an explicit
+`auto` with `medium` reasoning; model flags are used only for an explicit
 override or verified availability fallback. Running the script without agent
 flags remains supported and presents interactive notices.
 
@@ -103,7 +103,7 @@ The selected model and generated virtual key replace the placeholders in the
 installed configuration:
 
 ```toml
-model = "gpt-5.6-sol"
+model = "auto"
 model_provider = "ai-best-route"
 model_reasoning_effort = "medium"
 
@@ -131,7 +131,7 @@ docker ps --filter name=ai-best-model-route
 curl --fail http://127.0.0.1/health
 ```
 
-Then start a **new** Codex thread. It should use `gpt-5.6-sol` with `medium`
+Then start a **new** Codex thread. It should use `auto` with `medium`
 reasoning unless you explicitly requested an override or it required a verified
 availability fallback. Threads that were open before setup are expected to
 remain on their previous provider and model.
