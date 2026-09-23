@@ -1,0 +1,195 @@
+package gateway
+
+import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/vpicciuolo/ai-best-model-route/internal/config"
+)
+
+func testConfig(t *testing.T) config.Config {
+	t.Helper()
+	cfg := config.Config{
+		Version:                 1,
+		HostedToolFallbackModel: "openai/luna",
+		Providers: map[string]config.ProviderProfile{
+			"openai":  {CredentialMode: config.CredentialRequestPassthrough, ResponsesMode: config.ResponsesNative, DiscoverModels: true},
+			"managed": {CredentialMode: config.CredentialBifrost, ResponsesMode: config.ResponsesChatPolyfill, DiscoverModels: true},
+		},
+		Models: map[string]config.ModelProfile{
+			"openai/sol":         {Aliases: []string{"sol"}, Codex: config.CodexProfile{ContextWindow: 272000, MaxContextWindow: 872000}, ContextVariants: []config.ContextVariant{{ContextWindow: 872000}}},
+			"openai/luna":        {Aliases: []string{"luna"}, Codex: config.CodexProfile{}},
+			"managed/text-model": {Aliases: []string{"text-model"}, Codex: config.CodexProfile{}},
+		},
+	}
+	if err := cfg.ApplyDefaultsAndValidate(); err != nil {
+		t.Fatal(err)
+	}
+	return cfg
+}
+
+func TestResponsesDispatch(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		wantPath  string
+		wantModel string
+	}{
+		{"OpenAI native", `{"model":"openai/sol","input":"hi"}`, chatGPTResponsesPath, "sol"},
+		{"OpenAI context variant", `{"model":"sol-872k","input":"hi"}`, chatGPTResponsesPath, "sol"},
+		{"managed provider", `{"model":"managed/text-model","input":"hi"}`, "/v1/responses", "managed/text-model"},
+		{"new managed model", `{"model":"managed/new-model","input":"hi"}`, "/v1/responses", "managed/new-model"},
+		{"new OpenAI model", `{"model":"new-openai-model","input":"hi"}`, chatGPTResponsesPath, "new-openai-model"},
+		{"hosted tool fallback", `{"model":"managed/text-model","input":"hi","tools":[{"type":"web_search"}]}`, chatGPTResponsesPath, "luna"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				if req.URL.Path != test.wantPath {
+					t.Errorf("path = %q, want %q", req.URL.Path, test.wantPath)
+				}
+				if req.Header.Get("Authorization") != "Bearer test" || req.Header.Get("x-bf-vk") != "sk-bf-test" {
+					t.Errorf("routing headers were not preserved: %#v", req.Header)
+				}
+				body, _ := io.ReadAll(req.Body)
+				var envelope struct {
+					Model string `json:"model"`
+				}
+				if err := json.Unmarshal(body, &envelope); err != nil {
+					t.Fatal(err)
+				}
+				if envelope.Model != test.wantModel {
+					t.Errorf("model = %q, want %q", envelope.Model, test.wantModel)
+				}
+				w.Header().Set("Content-Type", "text/event-stream")
+				_, _ = w.Write([]byte("data: done\n\n"))
+			}))
+			defer upstream.Close()
+			handler, err := New(testConfig(t), upstream.URL, upstream.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req := httptest.NewRequest(http.MethodPost, "/v1/responses", io.NopCloser(stringsReader(test.body)))
+			req.Header.Set("Authorization", "Bearer test")
+			req.Header.Set("x-bf-vk", "sk-bf-test")
+			resp := httptest.NewRecorder()
+			handler.ServeHTTP(resp, req)
+			if resp.Code != http.StatusOK {
+				t.Fatalf("status = %d body=%s", resp.Code, resp.Body.String())
+			}
+		})
+	}
+}
+
+func TestModelsPreserveDirectMetadataAndAppendManagedModels(t *testing.T) {
+	bifrost := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path != "/v1/models" {
+			t.Fatalf("Bifrost path = %q", req.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"models":[{"slug":"openai/sol","display_name":"stale"},{"slug":"managed/text-model","display_name":"Managed Text"}]}`))
+	}))
+	defer bifrost.Close()
+	chatGPT := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path != "/backend-api/codex/models" || req.URL.Query().Get("client_version") != "test" {
+			t.Fatalf("ChatGPT request = %s", req.URL.String())
+		}
+		if req.Header.Get("Authorization") != "Bearer test" || req.Header.Get("x-bf-vk") != "" {
+			t.Fatalf("ChatGPT headers = %#v", req.Header)
+		}
+		_, _ = w.Write([]byte(`{"models":[{"slug":"sol","display_name":"Direct Sol","context_window":872000}],"recommended_model":"sol"}`))
+	}))
+	defer chatGPT.Close()
+	handler, err := New(testConfig(t), bifrost.URL, chatGPT.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler.metadataLookup = func(provider, upstream string) (string, int64, bool) {
+		names := map[string]string{
+			"openai/sol":         "OpenAI: Sol",
+			"managed/text-model": "Publisher: Text Model",
+		}
+		name, ok := names[provider+"/"+upstream]
+		context := int64(0)
+		if provider == "managed" && upstream == "text-model" {
+			context = 1000000
+		}
+		return name, context, ok
+	}
+	req := httptest.NewRequest(http.MethodGet, "/v1/models?client_version=test", nil)
+	req.Header.Set("Authorization", "Bearer test")
+	req.Header.Set("x-bf-vk", "sk-bf-test")
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", resp.Code, resp.Body.String())
+	}
+	var catalog struct {
+		Models []struct {
+			Slug          string `json:"slug"`
+			DisplayName   string `json:"display_name"`
+			ContextWindow int    `json:"context_window"`
+		} `json:"models"`
+		RecommendedModel string `json:"recommended_model"`
+	}
+	if err := json.Unmarshal(resp.Body.Bytes(), &catalog); err != nil {
+		t.Fatal(err)
+	}
+	if len(catalog.Models) != 3 || catalog.Models[0].Slug != "sol" || catalog.Models[0].DisplayName != "Sol" || catalog.Models[0].ContextWindow != 872000 || catalog.Models[1].Slug != "sol-872k" || catalog.Models[1].DisplayName != "Sol (872K)" || catalog.Models[2].Slug != "managed/text-model" || catalog.Models[2].DisplayName != "Text Model (Managed)" || catalog.Models[2].ContextWindow != 1000000 || catalog.RecommendedModel != "sol" {
+		t.Fatalf("merged catalog = %#v", catalog)
+	}
+}
+
+func TestModelsEditorializesManagedFallbackWhenDirectCatalogFails(t *testing.T) {
+	bifrost := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"models":[{"slug":"managed/text-model","display_name":"text-model [Managed]"}]}`))
+	}))
+	defer bifrost.Close()
+	chatGPT := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}))
+	defer chatGPT.Close()
+	handler, err := New(testConfig(t), bifrost.URL, chatGPT.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler.metadataLookup = func(provider, upstream string) (string, int64, bool) {
+		return "Publisher: Text Model", 1000000, provider == "managed" && upstream == "text-model"
+	}
+	req := httptest.NewRequest(http.MethodGet, "/v1/models?client_version=test", nil)
+	req.Header.Set("x-bf-vk", "sk-bf-test")
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, req)
+	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), `"display_name":"Text Model (Managed)"`) {
+		t.Fatalf("status = %d body = %s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestResponsesRejectsUnknownContextVariant(t *testing.T) {
+	handler, err := New(testConfig(t), "http://127.0.0.1:1", "http://127.0.0.1:1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", stringsReader(`{"model":"sol-512k","input":"hi"}`))
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, req)
+	if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "unresolved_model") {
+		t.Fatalf("status = %d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func stringsReader(value string) *reader { return &reader{value: value} }
+
+type reader struct{ value string }
+
+func (r *reader) Read(p []byte) (int, error) {
+	if r.value == "" {
+		return 0, io.EOF
+	}
+	n := copy(p, r.value)
+	r.value = r.value[n:]
+	return n, nil
+}
