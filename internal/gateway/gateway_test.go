@@ -21,10 +21,28 @@ func testConfig(t *testing.T) config.Config {
 			"managed": {CredentialMode: config.CredentialBifrost, ResponsesMode: config.ResponsesChatPolyfill, DiscoverModels: true},
 		},
 		Models: map[string]config.ModelProfile{
-			"openai/sol":         {Aliases: []string{"sol"}, Codex: config.CodexProfile{ContextWindow: 272000, MaxContextWindow: 872000}, ContextVariants: []config.ContextVariant{{ContextWindow: 872000}}},
-			"openai/luna":        {Aliases: []string{"luna"}, Codex: config.CodexProfile{}},
-			"managed/text-model": {Aliases: []string{"text-model"}, Codex: config.CodexProfile{}},
+			"openai/sol": {
+				Aliases: []string{"sol"},
+				Codex: config.CodexProfile{ContextWindow: 272000, MaxContextWindow: 872000},
+				ContextVariants: []config.ContextVariant{{ContextWindow: 872000}},
+				Route: config.RouteModelProfile{
+					Quality: 0.96, InputCostPerM: 4, OutputCostPerM: 16,
+					LatencyMS: 1200, Reliability: 0.995, Strengths: []string{"reasoning", "code"},
+				},
+			},
+			"openai/luna": {
+				Aliases: []string{"luna"}, Codex: config.CodexProfile{},
+				Route: config.RouteModelProfile{Disabled: true},
+			},
+			"managed/text-model": {
+				Aliases: []string{"text-model"}, Codex: config.CodexProfile{},
+				Route: config.RouteModelProfile{
+					Quality: 0.70, InputCostPerM: 0.2, OutputCostPerM: 0.6,
+					LatencyMS: 160, Reliability: 0.995, Strengths: []string{"fast", "general"},
+				},
+			},
 		},
+		AutoRoute: config.AutoRouteConfig{Enabled: true},
 	}
 	if err := cfg.ApplyDefaultsAndValidate(); err != nil {
 		t.Fatal(err)
@@ -44,6 +62,8 @@ func TestResponsesDispatch(t *testing.T) {
 		{"managed provider", `{"model":"managed/text-model","input":"hi"}`, "/v1/responses", "managed/text-model"},
 		{"new managed model", `{"model":"managed/new-model","input":"hi"}`, "/v1/responses", "managed/new-model"},
 		{"new OpenAI model", `{"model":"new-openai-model","input":"hi"}`, chatGPTResponsesPath, "new-openai-model"},
+		{"auto quality", `{"model":"auto:quality","input":"deeply analyze and reason about this architecture"}`, chatGPTResponsesPath, "sol"},
+		{"auto fast", `{"model":"auto:fast","input":"summarize this quickly"}`, "/v1/responses", "managed/text-model"},
 		{"hosted tool fallback", `{"model":"managed/text-model","input":"hi","tools":[{"type":"web_search"}]}`, chatGPTResponsesPath, "luna"},
 	}
 	for _, test := range tests {
@@ -140,6 +160,36 @@ func TestModelsPreserveDirectMetadataAndAppendManagedModels(t *testing.T) {
 	}
 	if len(catalog.Models) != 3 || catalog.Models[0].Slug != "sol" || catalog.Models[0].DisplayName != "Sol" || catalog.Models[0].ContextWindow != 872000 || catalog.Models[1].Slug != "sol-872k" || catalog.Models[1].DisplayName != "Sol (872K)" || catalog.Models[2].Slug != "managed/text-model" || catalog.Models[2].DisplayName != "Text Model (Managed)" || catalog.Models[2].ContextWindow != 1000000 || catalog.RecommendedModel != "sol" {
 		t.Fatalf("merged catalog = %#v", catalog)
+	}
+}
+
+func TestModelsWithoutCodexQueryStillExposeVirtualRoutes(t *testing.T) {
+	bifrost := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path != "/v1/models" {
+			t.Fatalf("Bifrost path = %q", req.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"models":[{"slug":"managed/text-model","display_name":"Managed Text"}]}`))
+	}))
+	defer bifrost.Close()
+	chatGPT := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}))
+	defer chatGPT.Close()
+
+	handler, err := New(testConfig(t), bifrost.URL, chatGPT.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	req.Header.Set("x-bf-vk", "sk-bf-test")
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", resp.Code, resp.Body.String())
+	}
+	if !strings.Contains(resp.Body.String(), `"id":"auto"`) ||
+		!strings.Contains(resp.Body.String(), `"id":"auto:code"`) {
+		t.Fatalf("virtual routes missing: %s", resp.Body.String())
 	}
 }
 
