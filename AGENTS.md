@@ -27,7 +27,7 @@ catalogs, or Codex provider configuration.
 - Treat the virtual key currently stored in the active Codex provider block as
   part of the existing state. A newly declared bootstrap key does not update an
   older persisted virtual key automatically.
-- Default new Codex threads to `gpt-5.6-sol` with `medium` reasoning. Do not ask
+- Default new Codex threads to the virtual `auto` route with `medium` reasoning. Do not ask
   the user to choose a default. Change it only when the user explicitly asks or
   authenticated discovery proves it unavailable; in that case select the
   closest available OpenAI coding model and explain the fallback.
@@ -82,6 +82,41 @@ never raise a provider-wide default merely because most models are larger.
 Never invent model IDs, context windows, plan entitlements, or capabilities.
 For an OpenAI-compatible provider with unverified richer capabilities, use the
 conservative `chat_polyfill` and text-only catalog contract.
+
+## Auto-routing onboarding
+
+The standalone value of this project is the OYYO-derived best-model decision
+layer. When `auto_route.enabled` is true, configure routing candidates
+deliberately rather than assuming every discovered model is safe to rank.
+
+For every model that should participate in `auto` routing:
+
+1. Keep an explicit `models.<provider/model>` entry even when provider model
+   discovery is enabled. Discovery controls manual availability; the explicit
+   entry supplies trusted routing metadata.
+2. Verify capabilities and context window from the provider/account before
+   advertising them.
+3. Populate `route.strengths` only from capabilities or evaluation results
+   you can support. Typical tags are `code`, `reasoning`, `tools`,
+   `vision`, `fast`, `general`, and `long-context`.
+4. Populate current input/output pricing when it is known. If pricing cannot be
+   verified, leave it unset rather than inventing a number.
+5. Treat `route.quality` as deployment-specific evaluation metadata, not a
+   marketing ranking. If no evaluation exists, leave it unset and let the
+   router use its neutral default.
+6. Mark `route.local: true` only when execution really remains in the user's
+   controlled local/private runtime.
+7. Use `privacy_tier` as a local deployment policy signal from 0 to 3. Do not
+   infer regulatory compliance from the number alone.
+
+The built-in virtual routes are `auto`, `auto:quality`, `auto:fast`,
+`auto:cheap`, `auto:code`, and `auto:private`. The agent may add custom
+profiles when the user has a real policy requirement.
+
+Before handoff, exercise `POST /v1/route/preview` with representative coding,
+reasoning, image, tool, cheap/fast, and local-only requests. Explain any model
+that was excluded because of missing metadata instead of silently weakening a
+hard requirement.
 
 ## Credential handoff
 
@@ -234,8 +269,9 @@ Do not strip hosted tools to keep a request on a polyfilled model.
 
 Before applying, summarize the resolved scope: providers, plans, enabled
 models, credential variable names, and any unverified capabilities. State that
-OpenAI passthrough remains enabled and that the default is `gpt-5.6-sol` with
-`medium` reasoning unless an automatic availability fallback was necessary.
+OpenAI passthrough remains enabled and that the default is the virtual `auto`
+route with `medium` reasoning. `auto` must resolve only among verified,
+explicitly configured routing candidates.
 Tell the user that the local Bifrost virtual key is stored in their mode-`0600`
 Codex config and that provider/model defaults affect only new threads.
 
@@ -259,8 +295,8 @@ Omit `--env-file` only when the generated config has no managed-provider
 credential references. Do not pass `--replace` unless the existing named
 containers belong to this project; inspect them first. The setup script backs
 up and preserves unrelated Codex configuration. Its defaults are
-`gpt-5.6-sol` and `medium`; pass `--model` or `--reasoning-effort` only for an
-explicit user override or verified availability fallback.
+`auto` and `medium`; pass `--model` or `--reasoning-effort` only for an
+explicit user override.
 
 ## Verification and handoff
 
