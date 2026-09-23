@@ -135,7 +135,15 @@ http_headers = { "x-bf-vk" = "sk-bf-xxx" }
 
 The provider uses Codex's existing OpenAI authentication for OpenAI models.
 The static `x-bf-vk` value authorizes requests at the local Bifrost gateway.
-The script creates a random key rather than using the example above.
+The script creates a random key rather than using the example above and writes
+the same local authorization key to:
+
+```text
+~/.config/ai-best-model-route/virtual-key
+```
+
+with mode `0600`, so non-Codex clients can reuse the local gateway without
+scraping Codex configuration.
 
 The relevant settings are described in the official OpenAI
 [Codex configuration reference](https://developers.openai.com/codex/config-reference/).
