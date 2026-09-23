@@ -338,14 +338,14 @@ func (e *Engine) decide(fields map[string]json.RawMessage, requested, profileNam
 	}
 
 	return &Decision{
-		RequestedModel: requested,
-		Profile: profileName,
-		SelectedModel: candidates[0].Model,
-		Task: signals.Task,
-		Signals: signals.Signals,
+		RequestedModel:       requested,
+		Profile:              profileName,
+		SelectedModel:        candidates[0].Model,
+		Task:                 signals.Task,
+		Signals:              signals.Signals,
 		EstimatedInputTokens: signals.EstimatedTokens,
-		Complexity: round6(signals.Complexity),
-		Candidates: candidates,
+		Complexity:           round6(signals.Complexity),
+		Candidates:           candidates,
 	}, nil
 }
 
@@ -438,13 +438,13 @@ func inspect(fields map[string]json.RawMessage) requestSignals {
 	signals = uniqueSorted(signals)
 	return requestSignals{
 		EstimatedTokens: estimatedTokens,
-		NeedsVision: needsVision,
-		HasTools: hasTools,
-		HasHostedTools: hostedTools,
-		NeedsSearch: needsSearch,
-		Task: signals[0],
-		Signals: signals,
-		Complexity: clamp(complexity, 0, 1),
+		NeedsVision:     needsVision,
+		HasTools:        hasTools,
+		HasHostedTools:  hostedTools,
+		NeedsSearch:     needsSearch,
+		Task:            signals[0],
+		Signals:         signals,
+		Complexity:      clamp(complexity, 0, 1),
 	}
 }
 
@@ -680,35 +680,35 @@ func InjectVirtualModels(body []byte, cfg config.Config) ([]byte, error) {
 		}
 		profileName := cfg.AutoRoute.Aliases[alias]
 		models = append(models, map[string]any{
-			"slug": alias,
-			"id": alias,
-			"display_name": "Auto · " + title(profileName) + " — OYYO Intelligence",
-			"description": "AI Best Model Route automatically selects the best eligible configured model for the " + profileName + " profile.",
+			"slug":                    alias,
+			"id":                      alias,
+			"display_name":            "Auto · " + title(profileName) + " — OYYO Intelligence",
+			"description":             "AI Best Model Route automatically selects the best eligible configured model for the " + profileName + " profile.",
 			"default_reasoning_level": "medium",
 			"supported_reasoning_levels": []map[string]string{
 				{"effort": "low", "description": "Fast reasoning"},
 				{"effort": "medium", "description": "Balanced reasoning"},
 				{"effort": "high", "description": "Deep reasoning"},
 			},
-			"shell_type": "unified_exec",
-			"visibility": "list",
-			"supported_in_api": true,
-			"priority": 0,
-			"additional_speed_tiers": []string{},
-			"service_tiers": []any{},
-			"base_instructions": cfg.Instructions,
-			"model_messages": map[string]any{"instructions_template": cfg.Instructions},
+			"shell_type":                           "unified_exec",
+			"visibility":                           "list",
+			"supported_in_api":                     true,
+			"priority":                             0,
+			"additional_speed_tiers":               []string{},
+			"service_tiers":                        []any{},
+			"base_instructions":                    cfg.Instructions,
+			"model_messages":                       map[string]any{"instructions_template": cfg.Instructions},
 			"supports_reasoning_summary_parameter": summaries,
-			"default_reasoning_summary": "auto",
-			"support_verbosity": verbosity,
-			"supports_image_detail_original": imageDetail,
-			"context_window": maxContext,
-			"max_context_window": maxContext,
-			"effective_context_window_percent": 95,
-			"experimental_supported_tools": []string{},
-			"input_modalities": inputModalities,
-			"supports_search_tool": search,
-			"responses_mode": "native",
+			"default_reasoning_summary":            "auto",
+			"support_verbosity":                    verbosity,
+			"supports_image_detail_original":       imageDetail,
+			"context_window":                       maxContext,
+			"max_context_window":                   maxContext,
+			"effective_context_window_percent":     95,
+			"experimental_supported_tools":         []string{},
+			"input_modalities":                     inputModalities,
+			"supports_search_tool":                 search,
+			"responses_mode":                       "native",
 		})
 	}
 	encoded, err := json.Marshal(models)

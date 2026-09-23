@@ -37,7 +37,7 @@ type Config struct {
 	HostedToolFallbackModel string                     `json:"hosted_tool_fallback_model,omitempty" yaml:"hosted_tool_fallback_model,omitempty"`
 	Providers               map[string]ProviderProfile `json:"providers" yaml:"providers"`
 	Models                  map[string]ModelProfile    `json:"models" yaml:"models"`
-	AutoRoute               AutoRouteConfig             `json:"auto_route,omitempty" yaml:"auto_route,omitempty"`
+	AutoRoute               AutoRouteConfig            `json:"auto_route,omitempty" yaml:"auto_route,omitempty"`
 	resolutionIndex         map[string]ResolvedModel
 	resolvedModels          []ResolvedModel
 }
@@ -437,7 +437,6 @@ func (c Config) ModelNames() []string {
 	return names
 }
 
-
 func applyAutoRouteDefaults(r *AutoRouteConfig) {
 	if !r.Enabled {
 		return
@@ -458,11 +457,11 @@ func applyAutoRouteDefaults(r *AutoRouteConfig) {
 		r.Aliases = map[string]string{}
 	}
 	aliases := map[string]string{
-		"auto": "balanced",
+		"auto":         "balanced",
 		"auto:quality": "quality",
-		"auto:fast": "fast",
-		"auto:cheap": "cheap",
-		"auto:code": "code",
+		"auto:fast":    "fast",
+		"auto:cheap":   "cheap",
+		"auto:code":    "code",
 		"auto:private": "private",
 	}
 	for alias, profile := range aliases {

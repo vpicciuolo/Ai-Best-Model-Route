@@ -6,13 +6,13 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/maximhq/bifrost/core/schemas"
 	"github.com/vpicciuolo/ai-best-model-route/internal/autoroute"
 	"github.com/vpicciuolo/ai-best-model-route/internal/catalog"
 	"github.com/vpicciuolo/ai-best-model-route/internal/config"
 	"github.com/vpicciuolo/ai-best-model-route/internal/credentials"
 	"github.com/vpicciuolo/ai-best-model-route/internal/editorial"
 	responsescompat "github.com/vpicciuolo/ai-best-model-route/internal/responses"
-	"github.com/maximhq/bifrost/core/schemas"
 )
 
 var state struct {
