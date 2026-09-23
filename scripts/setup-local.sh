@@ -17,6 +17,8 @@ accept_new_threads=false
 replace_existing=false
 state_dir="${XDG_STATE_HOME:-${HOME}/.local/state}/ai-best-model-route"
 runtime_config="${state_dir}/config.json"
+local_config_dir="${XDG_CONFIG_HOME:-${HOME}/.config}/ai-best-model-route"
+virtual_key_file="${local_config_dir}/virtual-key"
 codex_dir="${CODEX_HOME:-${HOME}/.codex}"
 codex_config="${codex_dir}/config.toml"
 
@@ -172,6 +174,27 @@ stage_runtime_config() {
 	chmod 0700 "$state_dir"
 	cp -- "$config_source" "$runtime_config"
 	chmod 0644 "$runtime_config"
+}
+
+store_virtual_key() {
+	local value="$1"
+	local temp
+
+	mkdir -p "$local_config_dir"
+	chmod 0700 "$local_config_dir"
+	if [[ -L "$virtual_key_file" ]]; then
+		printf 'error: refusing to replace virtual-key symlink: %s\n' "$virtual_key_file" >&2
+		return 1
+	fi
+	if [[ -e "$virtual_key_file" && ! -f "$virtual_key_file" ]]; then
+		printf 'error: virtual-key path is not a regular file: %s\n' "$virtual_key_file" >&2
+		return 1
+	fi
+	temp="$(mktemp "${local_config_dir}/.virtual-key.XXXXXX")"
+	printf '%s\n' "$value" >"$temp"
+	chmod 0600 "$temp"
+	mv -f -- "$temp" "$virtual_key_file"
+	printf 'Local virtual key file: %s\n' "$virtual_key_file"
 }
 
 wait_for_health() {
@@ -346,6 +369,7 @@ main() {
 		"$image_name" 65532:65532 /var/lib/bifrost/data
 
 	virtual_key="sk-bf-$(openssl rand -hex 24)"
+	store_virtual_key "$virtual_key"
 	if [[ -n "$provider_env" ]]; then
 		provider_env_args=(--env-file "$provider_env")
 	fi
