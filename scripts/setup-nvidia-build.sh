@@ -24,7 +24,7 @@ The script:
      or a hidden terminal prompt;
   2. verifies the key against NVIDIA's live /v1/models endpoint;
   3. stores the key only in ~/.config/ai-best-model-route/providers.env (0600);
-  4. installs the ready-to-use NVIDIA Build router config;
+  4. installs or safely merges the ready-to-use NVIDIA Build router config;
   5. optionally starts the local Docker router and configures Codex.
 
 Options:
@@ -58,7 +58,7 @@ require_command() {
 	}
 }
 
-for command in curl jq awk grep mktemp chmod mkdir cp mv; do
+for command in curl jq awk grep mktemp chmod mkdir cp mv date; do
 	require_command "$command"
 done
 
@@ -95,7 +95,8 @@ fi
 
 catalog_tmp="$(mktemp "${config_dir}/.nvidia-models.XXXXXX")"
 env_tmp="$(mktemp "${config_dir}/.providers.env.XXXXXX")"
-trap 'rm -f -- "${catalog_tmp:-}" "${env_tmp:-}"' EXIT
+merge_tmp="$(mktemp "${config_dir}/.config.merge.XXXXXX")"
+trap 'rm -f -- "${catalog_tmp:-}" "${env_tmp:-}" "${merge_tmp:-}"' EXIT
 
 printf 'Verifying NVIDIA Build API key and discovering account-visible models...\n'
 
@@ -127,16 +128,57 @@ mv -f -- "$env_tmp" "$env_file"
 cp -- "$catalog_tmp" "$catalog_file"
 chmod 0600 "$catalog_file"
 
-# The NVIDIA template is deterministic; back up a previously generated router
-# config before installing it. Existing multi-provider users should normally
-# ask Codex to merge NVIDIA into their current configuration instead.
+# First install copies the ready template. Existing standard ABMR local configs
+# are merged in place so unrelated providers, models, policies, and credentials
+# are preserved. Non-standard configs fail closed instead of being overwritten.
 if [[ -f "$config_file" ]]; then
 	backup="${config_file}.bak.$(date -u +%Y%m%dT%H%M%SZ)"
 	cp -p -- "$config_file" "$backup"
 	printf 'Existing router config backed up to %s\n' "$backup"
+
+	if ! jq -e '
+		([.plugins[]? | select(.name == "ai-best-model-route")] | length) == 1 and
+		([.governance.virtual_keys[]? | select(.id == "local-quickstart")] | length) == 1
+	' "$config_file" >/dev/null; then
+		printf 'error: existing config is not the standard ABMR local layout; refusing to overwrite it.\n' >&2
+		printf 'Use Codex with: Add NVIDIA Build to my existing AI Best Model Route setup.\n' >&2
+		printf 'Backup preserved at: %s\n' "$backup" >&2
+		exit 1
+	fi
+
+	jq --slurpfile nvidia "$template" '
+		($nvidia[0].providers["nvidia-build"]) as $provider |
+		($nvidia[0].governance.virtual_keys[0].provider_configs[]
+			| select(.provider == "nvidia-build")) as $vk_provider |
+		($nvidia[0].plugins[]
+			| select(.name == "ai-best-model-route")
+			| .config.providers["nvidia-build"]) as $router_provider |
+		($nvidia[0].plugins[]
+			| select(.name == "ai-best-model-route")
+			| .config.hosted_tool_fallback_model) as $fallback |
+		.providers["nvidia-build"] = $provider |
+		.governance.virtual_keys |= map(
+			if .id == "local-quickstart" then
+				.provider_configs = (
+					((.provider_configs // []) | map(select(.provider != "nvidia-build"))) +
+					[$vk_provider]
+				)
+			else . end
+		) |
+		.plugins |= map(
+			if .name == "ai-best-model-route" then
+				.config.providers["nvidia-build"] = $router_provider |
+				.config.hosted_tool_fallback_model = (.config.hosted_tool_fallback_model // $fallback)
+			else . end
+		)
+	' "$config_file" >"$merge_tmp"
+
+	chmod 0600 "$merge_tmp"
+	mv -f -- "$merge_tmp" "$config_file"
+else
+	cp -- "$template" "$config_file"
+	chmod 0600 "$config_file"
 fi
-cp -- "$template" "$config_file"
-chmod 0600 "$config_file"
 
 unset NVIDIA_API_KEY
 key=""
