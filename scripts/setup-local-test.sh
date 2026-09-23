@@ -23,6 +23,19 @@ fi
 
 prepare_inputs
 
+nvidia_config="$repo_dir/config/nvidia-build.json"
+jq -e '
+  .providers["nvidia-build"].keys[0].value == "env.NVIDIA_API_KEY" and
+  .providers["nvidia-build"].keys[0].models == ["*"] and
+  .providers["nvidia-build"].network_config.base_url == "https://integrate.api.nvidia.com" and
+  .providers["nvidia-build"].custom_provider_config.base_provider_type == "openai" and
+  .providers["nvidia-build"].custom_provider_config.allowed_requests.list_models == true and
+  ([.governance.virtual_keys[0].provider_configs[] | select(.provider == "nvidia-build")] | length) == 1 and
+  ([.plugins[] | select(.name == "ai-best-model-route") |
+    .config.providers["nvidia-build"] |
+    select(.discover_models == true and .responses_mode == "chat_polyfill")] | length) == 1
+' "$nvidia_config" >/dev/null
+
 mkdir -p "$test_root/input"
 jq '
   .providers.managed = {
