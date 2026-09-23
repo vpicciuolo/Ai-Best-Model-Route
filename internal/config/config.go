@@ -37,6 +37,7 @@ type Config struct {
 	HostedToolFallbackModel string                     `json:"hosted_tool_fallback_model,omitempty" yaml:"hosted_tool_fallback_model,omitempty"`
 	Providers               map[string]ProviderProfile `json:"providers" yaml:"providers"`
 	Models                  map[string]ModelProfile    `json:"models" yaml:"models"`
+	AutoRoute               AutoRouteConfig             `json:"auto_route,omitempty" yaml:"auto_route,omitempty"`
 	resolutionIndex         map[string]ResolvedModel
 	resolvedModels          []ResolvedModel
 }
@@ -100,13 +101,46 @@ type ContextVariant struct {
 }
 
 type ModelProfile struct {
-	Aliases         []string         `json:"aliases,omitempty" yaml:"aliases,omitempty"`
-	Provider        string           `json:"provider,omitempty" yaml:"provider,omitempty"`
-	UpstreamModel   string           `json:"upstream_model,omitempty" yaml:"upstream_model,omitempty"`
-	ResponsesMode   ResponsesMode    `json:"responses_mode,omitempty" yaml:"responses_mode,omitempty"`
-	Adapter         string           `json:"adapter,omitempty" yaml:"adapter,omitempty"`
-	Codex           CodexProfile     `json:"codex" yaml:"codex"`
-	ContextVariants []ContextVariant `json:"context_variants,omitempty" yaml:"context_variants,omitempty"`
+	Aliases         []string          `json:"aliases,omitempty" yaml:"aliases,omitempty"`
+	Provider        string            `json:"provider,omitempty" yaml:"provider,omitempty"`
+	UpstreamModel   string            `json:"upstream_model,omitempty" yaml:"upstream_model,omitempty"`
+	ResponsesMode   ResponsesMode     `json:"responses_mode,omitempty" yaml:"responses_mode,omitempty"`
+	Adapter         string            `json:"adapter,omitempty" yaml:"adapter,omitempty"`
+	Codex           CodexProfile      `json:"codex" yaml:"codex"`
+	ContextVariants []ContextVariant  `json:"context_variants,omitempty" yaml:"context_variants,omitempty"`
+	Route           RouteModelProfile `json:"route,omitempty" yaml:"route,omitempty"`
+}
+
+type AutoRouteConfig struct {
+	Enabled        bool                    `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	DefaultProfile string                  `json:"default_profile,omitempty" yaml:"default_profile,omitempty"`
+	Aliases        map[string]string       `json:"aliases,omitempty" yaml:"aliases,omitempty"`
+	Profiles       map[string]RouteProfile `json:"profiles,omitempty" yaml:"profiles,omitempty"`
+}
+
+type RouteProfile struct {
+	QualityWeight     float64 `json:"quality_weight,omitempty" yaml:"quality_weight,omitempty"`
+	CostWeight        float64 `json:"cost_weight,omitempty" yaml:"cost_weight,omitempty"`
+	LatencyWeight     float64 `json:"latency_weight,omitempty" yaml:"latency_weight,omitempty"`
+	ReliabilityWeight float64 `json:"reliability_weight,omitempty" yaml:"reliability_weight,omitempty"`
+	AffinityWeight    float64 `json:"affinity_weight,omitempty" yaml:"affinity_weight,omitempty"`
+	PrivacyWeight     float64 `json:"privacy_weight,omitempty" yaml:"privacy_weight,omitempty"`
+	MinQuality        float64 `json:"min_quality,omitempty" yaml:"min_quality,omitempty"`
+	MaxInputCostPerM  float64 `json:"max_input_cost_per_m,omitempty" yaml:"max_input_cost_per_m,omitempty"`
+	MaxOutputCostPerM float64 `json:"max_output_cost_per_m,omitempty" yaml:"max_output_cost_per_m,omitempty"`
+	PreferLocal       bool    `json:"prefer_local,omitempty" yaml:"prefer_local,omitempty"`
+}
+
+type RouteModelProfile struct {
+	Disabled       bool     `json:"disabled,omitempty" yaml:"disabled,omitempty"`
+	Quality        float64  `json:"quality,omitempty" yaml:"quality,omitempty"`
+	InputCostPerM  float64  `json:"input_cost_per_m,omitempty" yaml:"input_cost_per_m,omitempty"`
+	OutputCostPerM float64  `json:"output_cost_per_m,omitempty" yaml:"output_cost_per_m,omitempty"`
+	LatencyMS      float64  `json:"latency_ms,omitempty" yaml:"latency_ms,omitempty"`
+	Reliability    float64  `json:"reliability,omitempty" yaml:"reliability,omitempty"`
+	Strengths      []string `json:"strengths,omitempty" yaml:"strengths,omitempty"`
+	PrivacyTier    int      `json:"privacy_tier,omitempty" yaml:"privacy_tier,omitempty"`
+	Local          bool     `json:"local,omitempty" yaml:"local,omitempty"`
 }
 
 func Decode(r io.Reader) (Config, error) {
@@ -153,6 +187,7 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	if c.Version != CurrentVersion {
 		return fmt.Errorf("unsupported config version %d", c.Version)
 	}
+	applyAutoRouteDefaults(&c.AutoRoute)
 	if len(c.Providers) == 0 {
 		return errors.New("at least one provider is required")
 	}
@@ -259,6 +294,9 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 			return fmt.Errorf("hosted_tool_fallback_model %q must use native Responses with request_passthrough credentials", c.HostedToolFallbackModel)
 		}
 		c.HostedToolFallbackModel = fallback.Slug
+	}
+	if err := validateAutoRoute(*c); err != nil {
+		return err
 	}
 	return nil
 }
@@ -397,4 +435,104 @@ func (c Config) ModelNames() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+
+func applyAutoRouteDefaults(r *AutoRouteConfig) {
+	if !r.Enabled {
+		return
+	}
+	if r.DefaultProfile == "" {
+		r.DefaultProfile = "balanced"
+	}
+	defaults := defaultRouteProfiles()
+	if r.Profiles == nil {
+		r.Profiles = make(map[string]RouteProfile, len(defaults))
+	}
+	for name, profile := range defaults {
+		if _, exists := r.Profiles[name]; !exists {
+			r.Profiles[name] = profile
+		}
+	}
+	if r.Aliases == nil {
+		r.Aliases = map[string]string{}
+	}
+	aliases := map[string]string{
+		"auto": "balanced",
+		"auto:quality": "quality",
+		"auto:fast": "fast",
+		"auto:cheap": "cheap",
+		"auto:code": "code",
+		"auto:private": "private",
+	}
+	for alias, profile := range aliases {
+		if _, exists := r.Aliases[alias]; !exists {
+			r.Aliases[alias] = profile
+		}
+	}
+}
+
+func defaultRouteProfiles() map[string]RouteProfile {
+	return map[string]RouteProfile{
+		"balanced": {QualityWeight: 0.34, CostWeight: 0.16, LatencyWeight: 0.16, ReliabilityWeight: 0.18, AffinityWeight: 0.12, PrivacyWeight: 0.04},
+		"quality":  {QualityWeight: 0.62, CostWeight: 0.04, LatencyWeight: 0.06, ReliabilityWeight: 0.16, AffinityWeight: 0.12},
+		"fast":     {QualityWeight: 0.18, CostWeight: 0.10, LatencyWeight: 0.44, ReliabilityWeight: 0.20, AffinityWeight: 0.08},
+		"cheap":    {QualityWeight: 0.18, CostWeight: 0.48, LatencyWeight: 0.10, ReliabilityWeight: 0.16, AffinityWeight: 0.08},
+		"code":     {QualityWeight: 0.38, CostWeight: 0.08, LatencyWeight: 0.10, ReliabilityWeight: 0.16, AffinityWeight: 0.28},
+		"private":  {QualityWeight: 0.20, CostWeight: 0.08, LatencyWeight: 0.08, ReliabilityWeight: 0.16, AffinityWeight: 0.08, PrivacyWeight: 0.40, PreferLocal: true},
+	}
+}
+
+func (c Config) RoutingProfile(name string) (RouteProfile, bool) {
+	profile, ok := c.AutoRoute.Profiles[name]
+	return profile, ok
+}
+
+func validateAutoRoute(c Config) error {
+	if !c.AutoRoute.Enabled {
+		return nil
+	}
+	if _, ok := c.AutoRoute.Profiles[c.AutoRoute.DefaultProfile]; !ok {
+		return fmt.Errorf("auto_route default_profile %q is not defined", c.AutoRoute.DefaultProfile)
+	}
+	for alias, profileName := range c.AutoRoute.Aliases {
+		if strings.TrimSpace(alias) == "" || strings.TrimSpace(profileName) == "" {
+			return errors.New("auto_route aliases must use non-empty alias and profile names")
+		}
+		if _, ok := c.AutoRoute.Profiles[profileName]; !ok {
+			return fmt.Errorf("auto_route alias %q references unknown profile %q", alias, profileName)
+		}
+	}
+	for name, p := range c.AutoRoute.Profiles {
+		if strings.TrimSpace(name) == "" {
+			return errors.New("auto_route profile name cannot be empty")
+		}
+		weights := []float64{p.QualityWeight, p.CostWeight, p.LatencyWeight, p.ReliabilityWeight, p.AffinityWeight, p.PrivacyWeight}
+		total := 0.0
+		for _, w := range weights {
+			if w < 0 {
+				return fmt.Errorf("auto_route profile %q has a negative weight", name)
+			}
+			total += w
+		}
+		if total <= 0 {
+			return fmt.Errorf("auto_route profile %q must have at least one positive weight", name)
+		}
+		if p.MinQuality < 0 || p.MinQuality > 1 || p.MaxInputCostPerM < 0 || p.MaxOutputCostPerM < 0 {
+			return fmt.Errorf("auto_route profile %q has invalid quality or cost limits", name)
+		}
+	}
+	for slug, model := range c.Models {
+		r := model.Route
+		if r.Quality < 0 || r.Quality > 1 || r.Reliability < 0 || r.Reliability > 1 {
+			return fmt.Errorf("model %q route quality/reliability must be between 0 and 1", slug)
+		}
+		if r.InputCostPerM < 0 || r.OutputCostPerM < 0 || r.LatencyMS < 0 {
+			return fmt.Errorf("model %q route cost/latency values cannot be negative", slug)
+		}
+		if r.PrivacyTier < 0 || r.PrivacyTier > 3 {
+			return fmt.Errorf("model %q route privacy_tier must be between 0 and 3", slug)
+		}
+	}
+	return nil
 }

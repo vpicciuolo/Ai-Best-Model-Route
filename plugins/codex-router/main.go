@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/vpicciuolo/ai-best-model-route/internal/autoroute"
 	"github.com/vpicciuolo/ai-best-model-route/internal/catalog"
 	"github.com/vpicciuolo/ai-best-model-route/internal/config"
 	"github.com/vpicciuolo/ai-best-model-route/internal/credentials"
@@ -20,6 +21,7 @@ var state struct {
 }
 
 var metadataLookup catalog.MetadataLookup = editorial.NewOpenRouterResolver().LookupMetadata
+var routeEngine *autoroute.Engine
 
 func Init(raw any) error {
 	cfg, err := config.FromAny(raw)
@@ -29,6 +31,7 @@ func Init(raw any) error {
 	state.Lock()
 	state.config = cfg
 	state.Unlock()
+	routeEngine = autoroute.New(cfg)
 	return nil
 }
 
@@ -43,10 +46,28 @@ func currentConfig() config.Config {
 }
 
 func HTTPTransportPreAuthHook(_ *schemas.BifrostContext, req *schemas.HTTPRequest) (*schemas.HTTPResponse, error) {
+	if isRoutePreviewRequest(req) {
+		if routeEngine == nil {
+			return errorResponse(503, "router_not_ready", "AI Best Model Route is not initialized"), nil
+		}
+		decision, err := routeEngine.Preview(req.Body)
+		if err != nil {
+			return errorResponse(400, "route_unavailable", err.Error()), nil
+		}
+		body, _ := json.Marshal(decision)
+		return &schemas.HTTPResponse{StatusCode: 200, Headers: map[string]string{"Content-Type": "application/json", "Cache-Control": "no-store"}, Body: body}, nil
+	}
 	if !isInferenceRequest(req) {
 		return nil, nil
 	}
 	cfg := currentConfig()
+	if routeEngine != nil {
+		routed, _, err := routeEngine.Rewrite(req.Body)
+		if err != nil {
+			return errorResponse(400, "route_unavailable", err.Error()), nil
+		}
+		req.Body = routed
+	}
 	if isResponsesRequest(req) {
 		routedBody, _, err := responsescompat.ApplyHostedToolFallback(req.Body, cfg)
 		if err != nil {
@@ -83,19 +104,35 @@ func HTTPTransportPreHook(_ *schemas.BifrostContext, _ *schemas.HTTPRequest) (*s
 }
 
 func HTTPTransportPostHook(_ *schemas.BifrostContext, req *schemas.HTTPRequest, resp *schemas.HTTPResponse) error {
-	if !isCodexModelsRequest(req) || resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil
+	if isCodexModelsRequest(req) && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		body, err := catalog.HydrateWithMetadata(resp.Body, currentConfig(), metadataLookup)
+		if err != nil {
+			return err
+		}
+		body, err = autoroute.InjectVirtualModels(body, currentConfig())
+		if err != nil {
+			return err
+		}
+		resp.Body = body
+		if resp.Headers == nil {
+			resp.Headers = make(map[string]string)
+		}
+		resp.Headers["Content-Type"] = "application/json"
+		resp.Headers["Cache-Control"] = "no-store"
 	}
-	body, err := catalog.HydrateWithMetadata(resp.Body, currentConfig(), metadataLookup)
-	if err != nil {
-		return err
+	if isInferenceRequest(req) {
+		model := autoroute.ModelFromBody(req.Body)
+		if routeEngine != nil && model != "" {
+			routeEngine.Observe(model, resp.StatusCode)
+		}
+		if model != "" {
+			if resp.Headers == nil {
+				resp.Headers = make(map[string]string)
+			}
+			resp.Headers["X-AI-Best-Model"] = model
+			resp.Headers["X-AI-Route-Engine"] = "OYYO-AI-Best-Model-Route"
+		}
 	}
-	resp.Body = body
-	if resp.Headers == nil {
-		resp.Headers = make(map[string]string)
-	}
-	resp.Headers["Content-Type"] = "application/json"
-	resp.Headers["Cache-Control"] = "no-store"
 	return nil
 }
 
@@ -160,6 +197,10 @@ func isInferenceRequest(req *schemas.HTTPRequest) bool {
 		strings.HasSuffix(req.Path, "/chatgpt_passthrough/backend-api/codex/responses") ||
 		strings.HasSuffix(req.Path, "/v1/chat/completions") ||
 		strings.HasSuffix(req.Path, "/v1/completions")
+}
+
+func isRoutePreviewRequest(req *schemas.HTTPRequest) bool {
+	return req != nil && strings.EqualFold(req.Method, "POST") && strings.HasSuffix(req.Path, "/v1/route/preview")
 }
 
 func isCodexModelsRequest(req *schemas.HTTPRequest) bool {

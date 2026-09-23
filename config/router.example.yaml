@@ -3,6 +3,17 @@ instructions_template: >-
   You are a coding agent. Follow the user's instructions and use the available tools carefully.
 hosted_tool_fallback_model: openai/gpt-5.6-luna
 
+auto_route:
+  enabled: true
+  default_profile: balanced
+  aliases:
+    auto: balanced
+    "auto:quality": quality
+    "auto:fast": fast
+    "auto:cheap": cheap
+    "auto:code": code
+    "auto:private": private
+
 providers:
   openai:
     display_name: OpenAI
@@ -42,6 +53,14 @@ models:
       supports_reasoning_summaries: true
       supports_verbosity: true
       supports_image_detail_original: true
+    route:
+      quality: 0.94
+      input_cost_per_m: 2.5
+      output_cost_per_m: 15
+      latency_ms: 1200
+      reliability: 0.995
+      strengths: [reasoning, code, tools, vision]
+      privacy_tier: 2
     context_variants:
       - context_window: 256000
   openai/gpt-5.6-luna:
@@ -54,6 +73,14 @@ models:
       input_modalities: [text, image]
   managed/example-model:
     aliases: [example-model]
+    route:
+      quality: 0.72
+      input_cost_per_m: 0.4
+      output_cost_per_m: 1.2
+      latency_ms: 500
+      reliability: 0.99
+      strengths: [fast, general]
+      privacy_tier: 2
     codex:
       display_name: Managed Provider Example
       description: Example Chat Completions model exposed through the Responses polyfill.

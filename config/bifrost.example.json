@@ -1,41 +1,127 @@
 {
   "$schema": "https://www.getbifrost.ai/schema",
   "version": 2,
-  "config_store": { "enabled": false },
-  "logs_store": { "enabled": false },
+  "config_store": {
+    "enabled": false
+  },
+  "logs_store": {
+    "enabled": false
+  },
   "client": {
     "allow_direct_keys": true,
     "disable_content_logging": true,
     "enable_logging": true
   },
   "providers": {
-    "openai": { "keys": [] },
+    "openai": {
+      "keys": []
+    },
     "managed": {
-      "keys": [{
-        "name": "managed",
-        "value": "env.MANAGED_PROVIDER_API_KEY",
-        "models": ["*"],
-        "weight": 1
-      }]
+      "keys": [
+        {
+          "name": "managed",
+          "value": "env.MANAGED_PROVIDER_API_KEY",
+          "models": [
+            "*"
+          ],
+          "weight": 1
+        }
+      ]
     }
   },
-  "plugins": [{
-    "enabled": true,
-    "name": "ai-best-model-route",
-    "path": "./lib/ai-best-model-route.so",
-    "config": {
-      "version": 1,
-      "instructions_template": "You are a coding agent.",
-      "hosted_tool_fallback_model": "openai/gpt-5.6-luna",
-      "providers": {
-        "openai": { "credential_mode": "request_passthrough", "responses_mode": "native", "discover_models": true },
-        "managed": { "credential_mode": "bifrost", "responses_mode": "chat_polyfill", "adapter": "single-system-message", "discover_models": true, "codex_defaults": { "context_window": 131072, "input_modalities": ["text"] } }
-      },
-      "models": {
-        "openai/gpt-example": { "aliases": ["gpt-example"], "codex": { "context_window": 128000 } },
-        "openai/gpt-5.6-luna": { "aliases": ["gpt-5.6-luna"], "codex": { "context_window": 272000 } },
-        "managed/example-model": { "aliases": ["example-model"], "codex": { "context_window": 131072 } }
+  "plugins": [
+    {
+      "enabled": true,
+      "name": "ai-best-model-route",
+      "path": "./lib/ai-best-model-route.so",
+      "config": {
+        "version": 1,
+        "instructions_template": "You are a coding agent.",
+        "hosted_tool_fallback_model": "openai/gpt-5.6-luna",
+        "providers": {
+          "openai": {
+            "credential_mode": "request_passthrough",
+            "responses_mode": "native",
+            "discover_models": true
+          },
+          "managed": {
+            "credential_mode": "bifrost",
+            "responses_mode": "chat_polyfill",
+            "adapter": "single-system-message",
+            "discover_models": true,
+            "codex_defaults": {
+              "context_window": 131072,
+              "input_modalities": [
+                "text"
+              ]
+            }
+          }
+        },
+        "models": {
+          "openai/gpt-example": {
+            "aliases": [
+              "gpt-example"
+            ],
+            "codex": {
+              "context_window": 128000
+            },
+            "route": {
+              "quality": 0.94,
+              "input_cost_per_m": 2.5,
+              "output_cost_per_m": 15,
+              "latency_ms": 1200,
+              "reliability": 0.995,
+              "strengths": [
+                "reasoning",
+                "code",
+                "tools",
+                "vision"
+              ],
+              "privacy_tier": 2
+            }
+          },
+          "openai/gpt-5.6-luna": {
+            "aliases": [
+              "gpt-5.6-luna"
+            ],
+            "codex": {
+              "context_window": 272000
+            }
+          },
+          "managed/example-model": {
+            "aliases": [
+              "example-model"
+            ],
+            "codex": {
+              "context_window": 131072
+            },
+            "route": {
+              "quality": 0.72,
+              "input_cost_per_m": 0.4,
+              "output_cost_per_m": 1.2,
+              "latency_ms": 500,
+              "reliability": 0.99,
+              "strengths": [
+                "fast",
+                "general"
+              ],
+              "privacy_tier": 2
+            }
+          }
+        },
+        "auto_route": {
+          "enabled": true,
+          "default_profile": "balanced",
+          "aliases": {
+            "auto": "balanced",
+            "auto:quality": "quality",
+            "auto:fast": "fast",
+            "auto:cheap": "cheap",
+            "auto:code": "code",
+            "auto:private": "private"
+          }
+        }
       }
     }
-  }]
+  ]
 }
