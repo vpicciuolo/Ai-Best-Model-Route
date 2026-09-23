@@ -22,8 +22,8 @@ func testConfig(t *testing.T) config.Config {
 		},
 		Models: map[string]config.ModelProfile{
 			"openai/sol": {
-				Aliases: []string{"sol"},
-				Codex: config.CodexProfile{ContextWindow: 272000, MaxContextWindow: 872000},
+				Aliases:         []string{"sol"},
+				Codex:           config.CodexProfile{ContextWindow: 272000, MaxContextWindow: 872000},
 				ContextVariants: []config.ContextVariant{{ContextWindow: 872000}},
 				Route: config.RouteModelProfile{
 					Quality: 0.96, InputCostPerM: 4, OutputCostPerM: 16,
