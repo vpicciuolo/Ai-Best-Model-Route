@@ -118,6 +118,54 @@ reasoning, image, tool, cheap/fast, and local-only requests. Explain any model
 that was excluded because of missing metadata instead of silently weakening a
 hard requirement.
 
+## NVIDIA Build / NVIDIA API Catalog
+
+Treat NVIDIA Build as a first-class provider integration.
+
+When the user asks to add NVIDIA Build, NVIDIA NIM hosted APIs, or
+build.nvidia.com models:
+
+1. Re-check current NVIDIA documentation before applying configuration.
+2. Use `NVIDIA_API_KEY` as the local secret variable unless official
+   documentation has changed.
+3. Validate the credential against the account-visible model endpoint at:
+   ```text
+   https://integrate.api.nvidia.com/v1/models
+   ```
+4. Configure Bifrost's custom provider as `nvidia-build` with
+   `base_provider_type: openai`.
+5. Set Bifrost `network_config.base_url` to:
+   ```text
+   https://integrate.api.nvidia.com
+   ```
+   The missing terminal `/v1` is intentional because the OpenAI-compatible
+   Bifrost provider appends operation paths such as `/v1/models` and
+   `/v1/chat/completions`.
+6. Use the provider credential with `models: ["*"]`.
+7. Give the active local virtual key access to the NVIDIA provider with an
+   all-model policy unless the user asks for an allowlist.
+8. In the ABMR plugin config, use:
+   - `credential_mode: bifrost`
+   - `responses_mode: chat_polyfill`
+   - `adapter: openai-chat`
+   - `discover_models: true`
+9. Keep discovered NVIDIA models conservative by default. Catalog discovery
+   proves account availability, not image/tool/reasoning/context capability.
+10. Do not automatically make every newly discovered NVIDIA model an
+    `auto:*` routing candidate. Promote models into automatic routing only
+    after verified capability metadata and, where relevant, measured
+    quality/cost/latency information are available.
+11. After setup, verify both the direct NVIDIA catalog and the ABMR catalog
+    without printing the API key.
+12. Report the number of account-visible NVIDIA model IDs returned at setup,
+    but do not claim that every NVIDIA model on build.nvidia.com is included
+    if the user's authenticated endpoint returns a smaller set.
+
+For a clean local install, `scripts/setup-nvidia-build.sh` implements this
+flow. For an existing multi-provider install, merge the same provider objects
+while preserving all other providers, models, virtual-key policy, and routing
+metadata.
+
 ## Credential handoff
 
 Never ask the user to paste a provider secret into chat, commit it, place it in
