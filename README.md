@@ -259,18 +259,24 @@ ABMR can also sit behind software that lets you set an OpenAI-compatible base UR
 Conceptually:
 
 ```python
+from pathlib import Path
 from openai import OpenAI
+
+virtual_key = Path("~/.config/ai-best-model-route/virtual-key").expanduser().read_text().strip()
 
 client = OpenAI(
     base_url="http://127.0.0.1/v1",
-    api_key="YOUR_LOCAL_BIFROST_VIRTUAL_KEY",
+    api_key="abmr-managed-provider",
+    default_headers={"x-bf-vk": virtual_key},
 )
 
 response = client.responses.create(
-    model="auto",
+    model="nvidia-build/<model-id-from-your-catalog>",
     input="Review this architecture and find the highest-risk design flaw."
 )
 ```
+
+For generic SDKs, the `api_key` placeholder only satisfies the client library; ABMR strips it before managed-provider execution. The actual local authorization is `x-bf-vk`. Codex's special OpenAI login passthrough is Codex-specific; if a standalone client needs OpenAI API models, configure OpenAI as a normal Bifrost-managed provider instead of relying on the Codex passthrough route.
 
 For Chat Completions-compatible clients:
 
@@ -425,7 +431,7 @@ Typical integration pattern:
 
 | Client/framework | Integration |
 | --- | --- |
-| OpenAI SDK | Set `base_url`; use `auto` |
+| OpenAI SDK | Set `base_url` + `x-bf-vk`; use managed models or `auto` with an SDK-compatible candidate set |
 | Codex | Install the custom Responses provider; virtual routes appear in catalog |
 | LangChain / LangGraph | Use an OpenAI-compatible chat/Responses client pointing at ABMR |
 | OpenWebUI / LibreChat | Add ABMR as a custom OpenAI-compatible endpoint |
