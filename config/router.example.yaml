@@ -1,0 +1,70 @@
+version: 1
+instructions_template: >-
+  You are a coding agent. Follow the user's instructions and use the available tools carefully.
+hosted_tool_fallback_model: openai/gpt-5.6-luna
+
+providers:
+  openai:
+    display_name: OpenAI
+    credential_mode: request_passthrough
+    responses_mode: native
+    adapter: native
+    discover_models: true
+  managed:
+    display_name: Managed
+    credential_mode: bifrost
+    responses_mode: chat_polyfill
+    adapter: single-system-message
+    discover_models: true
+    codex_defaults:
+      context_window: 131072
+      input_modalities: [text]
+
+models:
+  openai/gpt-example:
+    aliases: [gpt-example]
+    upstream_model: gpt-example
+    codex:
+      display_name: OpenAI GPT Example
+      description: Example native OpenAI model; replace with a currently supported model.
+      context_window: 128000
+      max_context_window: 256000
+      effective_context_window_percent: 95
+      default_reasoning_level: medium
+      supported_reasoning_levels:
+        - effort: low
+          description: Fast reasoning
+        - effort: medium
+          description: Balanced reasoning
+        - effort: high
+          description: Deep reasoning
+      input_modalities: [text, image]
+      supports_reasoning_summaries: true
+      supports_verbosity: true
+      supports_image_detail_original: true
+    context_variants:
+      - context_window: 256000
+  openai/gpt-5.6-luna:
+    aliases: [gpt-5.6-luna]
+    codex:
+      display_name: GPT-5.6-Luna
+      description: Fast OpenAI fallback for provider-hosted Responses tools.
+      context_window: 272000
+      effective_context_window_percent: 95
+      input_modalities: [text, image]
+  managed/example-model:
+    aliases: [example-model]
+    codex:
+      display_name: Managed Provider Example
+      description: Example Chat Completions model exposed through the Responses polyfill.
+      context_window: 131072
+      effective_context_window_percent: 95
+      default_reasoning_level: medium
+      supported_reasoning_levels:
+        - effort: low
+          description: Fast reasoning
+        - effort: medium
+          description: Balanced reasoning
+        - effort: high
+          description: Deep reasoning
+      input_modalities: [text]
