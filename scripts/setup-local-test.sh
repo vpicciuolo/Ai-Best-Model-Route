@@ -10,7 +10,7 @@ trap 'rm -rf -- "$test_root"' EXIT
 export CODEX_HOME="$test_root/codex"
 export XDG_STATE_HOME="$test_root/state"
 source "$script_dir/setup-local.sh"
-test "$default_model" = "gpt-5.6-sol"
+test "$default_model" = "auto"
 test "$reasoning_effort" = "medium"
 if grep -Eq 'for command in .*\bcodex\b' "$script_dir/setup-local.sh"; then
 	echo "Codex CLI must remain optional for Desktop-only installations" >&2
