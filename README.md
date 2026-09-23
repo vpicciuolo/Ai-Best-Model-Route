@@ -2,7 +2,8 @@
 
 <p align="center">
   <strong>One request. The right model. Automatically.</strong><br/>
-  <sub>An open-source OYYO AI Intelligence spin-off by HRN Innovation Technologies LTD.</sub>
+  <sub>An open-source OYYO AI Intelligence spin-off by 
+    HRN Innovation Technologies LTD.</sub>
 </p>
 
 <p align="center">
