@@ -1,0 +1,23 @@
+AI Best Model Route
+Copyright 2026 HRN Innovation Technologies LTD / OYYO AI Intelligence
+
+This repository is a derivative work of Bifrost Model Router:
+  Bifrost Model Router
+  Copyright 2026 Apply Innovations
+  https://github.com/applyinnovations/bifrost-model-router
+
+Bifrost Model Router is licensed under the Apache License, Version 2.0.
+
+This product also includes and is built upon Bifrost:
+  Bifrost
+  Copyright 2025 H3 Labs Inc.
+  https://github.com/maximhq/bifrost
+
+Bifrost is licensed under the Apache License, Version 2.0.
+
+The OYYO AI Intelligence routing decision layer, documentation, routing profiles,
+policy model, explainability surfaces, and subsequent modifications in this
+repository are maintained by HRN Innovation Technologies LTD.
+
+These attributions are informational and do not imply endorsement by Apply
+Innovations, H3 Labs Inc., Maxim, or their contributors.
