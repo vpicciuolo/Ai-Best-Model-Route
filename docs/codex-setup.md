@@ -26,6 +26,24 @@ than requiring you to supply Bifrost configuration.
 
 The agent follows [the repository onboarding instructions](../AGENTS.md).
 
+## NVIDIA Build in one command
+
+For a clean or standard local ABMR installation, NVIDIA Build has a dedicated
+installer:
+
+```bash
+./scripts/setup-nvidia-build.sh
+```
+
+Paste the NVIDIA API key into the hidden prompt. The script validates the key,
+discovers the account-visible NVIDIA model catalog, securely writes
+`NVIDIA_API_KEY`, merges the provider into an existing standard ABMR config
+when present, and then invokes the normal local setup executor.
+
+After it finishes, fully restart Codex and create a new task. See
+[the NVIDIA Build guide](nvidia-build.md) for the provider architecture,
+catalog behavior, security model, and troubleshooting.
+
 ## Credential step
 
 After resolving the providers and required environment variable names, Codex
