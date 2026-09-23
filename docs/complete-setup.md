@@ -419,7 +419,14 @@ requires_openai_auth = true
 http_headers = { "x-bf-vk" = "LOCAL_VIRTUAL_KEY" }
 ```
 
-The exact virtual key is generated locally.
+The exact virtual key is generated locally. The setup also stores it in a
+mode-`0600` file for non-Codex integrations:
+
+```text
+~/.config/ai-best-model-route/virtual-key
+```
+
+This is the local ABMR authorization key, not a provider API key.
 
 After configuration:
 
@@ -508,22 +515,28 @@ The `ai_route` object is stripped before the request reaches the upstream model 
 ## 16. Use from the OpenAI Python SDK
 
 ```python
+from pathlib import Path
 from openai import OpenAI
+
+virtual_key = Path("~/.config/ai-best-model-route/virtual-key").expanduser().read_text().strip()
 
 client = OpenAI(
     base_url="http://127.0.0.1/v1",
-    api_key="YOUR_LOCAL_VIRTUAL_KEY",
+    api_key="abmr-managed-provider",
+    default_headers={"x-bf-vk": virtual_key},
 )
 
 response = client.responses.create(
-    model="auto",
+    model="nvidia-build/<model-id-from-your-catalog>",
     input="Design an API migration plan with rollback safety.",
 )
 
 print(response.output_text)
 ```
 
-Use the authentication/header arrangement required by your deployment. The Codex quickstart additionally uses the Bifrost virtual-key header configured in Codex.
+For a managed provider, the SDK's placeholder Authorization value is removed before upstream execution; the local router is authorized by `x-bf-vk`.
+
+Use `auto` or another virtual route from a generic SDK only when the candidate set is appropriate for that client. The default OpenAI request-passthrough route uses Codex's login semantics and is not a generic OpenAI-platform API proxy.
 
 ---
 
