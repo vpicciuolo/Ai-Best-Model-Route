@@ -1,0 +1,42 @@
+name: Auto-format source
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: ${{ !contains(github.event.head_commit.message, '[autoformat]') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Format Go
+        run: gofmt -w cmd internal plugins
+
+      - name: Install shfmt
+        run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.12.0
+
+      - name: Format shell
+        run: '$(go env GOPATH)/bin/shfmt -w scripts'
+
+      - name: Commit formatting
+        run: |
+          if git diff --quiet; then
+            echo "Formatting already clean."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add cmd internal plugins scripts
+          git commit -m "Auto-format source [autoformat]"
+          git push
