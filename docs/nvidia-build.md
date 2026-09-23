@@ -297,9 +297,11 @@ This prevents a text-only route from silently receiving an image request or a Ch
 
 ## Existing AI Best Model Route installation
 
-The one-key installer is optimized for a clean NVIDIA-first setup. If you already maintain a multi-provider configuration, do not overwrite it casually.
+The one-key installer safely merges NVIDIA Build into the **standard ABMR local configuration**. It creates a timestamped backup, preserves unrelated providers/models/policies, replaces only the NVIDIA provider definition, and grants NVIDIA access only to the standard local quickstart virtual key.
 
-Recommended existing-install flow:
+If the existing JSON is not the standard ABMR local layout, the script refuses to overwrite it. For a custom/production configuration, use the agent-managed merge:
+
+Recommended custom-install flow:
 
 1. Open this repository in Codex.
 2. Ask:
