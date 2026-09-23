@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vpicciuolo/ai-best-model-route/internal/autoroute"
 	"github.com/vpicciuolo/ai-best-model-route/internal/catalog"
 	"github.com/vpicciuolo/ai-best-model-route/internal/config"
 	"github.com/vpicciuolo/ai-best-model-route/internal/editorial"
@@ -31,6 +32,7 @@ type Handler struct {
 	client          *http.Client
 	chatGPTModelURL string
 	metadataLookup  catalog.MetadataLookup
+	routeEngine     *autoroute.Engine
 }
 
 func New(cfg config.Config, bifrostURL, chatGPTURL string) (*Handler, error) {
@@ -55,6 +57,7 @@ func New(cfg config.Config, bifrostURL, chatGPTURL string) (*Handler, error) {
 		client:          &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }},
 		chatGPTModelURL: "/backend-api/codex/models",
 		metadataLookup:  editorial.NewOpenRouterResolver().LookupMetadata,
+		routeEngine:     autoroute.New(cfg),
 	}, nil
 }
 
@@ -62,7 +65,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	switch {
 	case req.Method == http.MethodPost && req.URL.Path == "/v1/responses":
 		h.serveResponses(w, req)
-	case req.Method == http.MethodGet && req.URL.Path == "/v1/models" && req.URL.Query().Get("client_version") != "":
+	case req.Method == http.MethodGet && req.URL.Path == "/v1/models":
 		h.serveModels(w, req)
 	default:
 		h.proxyBifrost(w, req, req.URL.Path, nil)
@@ -74,6 +77,13 @@ func (h *Handler) serveResponses(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "could not read request body")
 		return
+	}
+	if h.routeEngine != nil {
+		body, _, err = h.routeEngine.Rewrite(body)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "route_unavailable", err.Error())
+			return
+		}
 	}
 	routed, _, err := responsescompat.ApplyHostedToolFallback(body, h.cfg)
 	if err != nil {
@@ -151,8 +161,15 @@ func (h *Handler) serveModels(w http.ResponseWriter, req *http.Request) {
 	directBody, directStatus, directErr := h.fetch(req, h.chatGPTURL, h.chatGPTModelURL, true)
 	if directErr != nil || directStatus < 200 || directStatus >= 300 {
 		if bifrostStatus >= 200 && bifrostStatus < 300 {
-			if decorated, decorateErr := catalog.DecorateCatalog(bifrostBody, h.cfg, h.metadataLookup); decorateErr == nil {
-				bifrostBody = decorated
+			decorated, decorateErr := catalog.DecorateCatalog(bifrostBody, h.cfg, h.metadataLookup)
+			if decorateErr != nil {
+				writeError(w, http.StatusBadGateway, "catalog_invalid", "Bifrost returned an invalid model catalog")
+				return
+			}
+			bifrostBody, decorateErr = autoroute.InjectVirtualModels(decorated, h.cfg)
+			if decorateErr != nil {
+				writeError(w, http.StatusBadGateway, "catalog_invalid", "could not add virtual routing models")
+				return
 			}
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -164,6 +181,11 @@ func (h *Handler) serveModels(w http.ResponseWriter, req *http.Request) {
 	merged, err := mergeCatalogs(directBody, bifrostBody, h.cfg, h.metadataLookup)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "catalog_invalid", "an upstream returned an invalid model catalog")
+		return
+	}
+	merged, err = autoroute.InjectVirtualModels(merged, h.cfg)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "catalog_invalid", "could not add virtual routing models")
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
