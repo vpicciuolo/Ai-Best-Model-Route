@@ -9,6 +9,7 @@ trap 'rm -rf -- "$test_root"' EXIT
 
 export CODEX_HOME="$test_root/codex"
 export XDG_STATE_HOME="$test_root/state"
+export XDG_CONFIG_HOME="$test_root/config"
 source "$script_dir/setup-local.sh"
 test "$default_model" = "auto"
 test "$reasoning_effort" = "medium"
@@ -65,6 +66,11 @@ prepare_inputs
 stage_runtime_config
 test -f "$runtime_config"
 test "$(file_mode "$runtime_config")" = 644
+
+store_virtual_key sk-bf-test-only >/dev/null
+test -f "$virtual_key_file"
+test "$(file_mode "$virtual_key_file")" = 600
+grep -Fqx 'sk-bf-test-only' "$virtual_key_file"
 
 install_codex_config sk-bf-test-only >/dev/null
 grep -Fqx 'model = "managed/text-model"' "$codex_config"
