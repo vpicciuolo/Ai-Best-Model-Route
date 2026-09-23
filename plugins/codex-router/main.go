@@ -47,6 +47,9 @@ func currentConfig() config.Config {
 
 func HTTPTransportPreAuthHook(_ *schemas.BifrostContext, req *schemas.HTTPRequest) (*schemas.HTTPResponse, error) {
 	if isRoutePreviewRequest(req) {
+		if !credentials.VirtualKeyPresent(req.Headers) {
+			return errorResponse(401, "missing_bifrost_auth", "a Bifrost virtual key is required in the x-bf-vk header"), nil
+		}
 		if routeEngine == nil {
 			return errorResponse(503, "router_not_ready", "AI Best Model Route is not initialized"), nil
 		}
