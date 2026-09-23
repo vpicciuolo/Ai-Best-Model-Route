@@ -1,5 +1,35 @@
 # AI Best Model Route
 
+<p align="center">
+  <strong>One request. The right model. Automatically.</strong><br/>
+  <sub>An open-source OYYO AI Intelligence spin-off by HRN Innovation Technologies LTD.</sub>
+</p>
+
+<p align="center">
+  <a href="https://oyyo.one"><img alt="OYYO AI Intelligence" src="https://img.shields.io/badge/OYYO-AI%20Intelligence-111111?style=for-the-badge"></a>
+  <a href="https://hrn.ae"><img alt="HRN Innovation Technologies" src="https://img.shields.io/badge/HRN-Innovation%20Technologies-202020?style=for-the-badge"></a>
+  <a href="https://build.nvidia.com"><img alt="NVIDIA Build Ready" src="https://img.shields.io/badge/NVIDIA%20Build-Ready-76B900?style=for-the-badge&logo=nvidia&logoColor=white"></a>
+  <a href="https://github.com/vpicciuolo/Ai-Best-Model-Route/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/vpicciuolo/Ai-Best-Model-Route/ci.yml?branch=main&style=for-the-badge&label=CI"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/vpicciuolo/Ai-Best-Model-Route/blob/main/LICENSE"><img alt="Apache-2.0" src="https://img.shields.io/github/license/vpicciuolo/Ai-Best-Model-Route?style=flat-square"></a>
+  <a href="https://go.dev"><img alt="Go" src="https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat-square&logo=go&logoColor=white"></a>
+  <a href="https://www.getbifrost.ai"><img alt="Bifrost" src="https://img.shields.io/badge/Bifrost-Execution%20Plane-5B5BD6?style=flat-square"></a>
+  <a href="https://developers.openai.com/codex/"><img alt="Codex Ready" src="https://img.shields.io/badge/Codex-Ready-000000?style=flat-square&logo=openai&logoColor=white"></a>
+  <a href="https://www.docker.com"><img alt="Docker" src="https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white"></a>
+  <a href="https://github.com/vpicciuolo/Ai-Best-Model-Route/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/vpicciuolo/Ai-Best-Model-Route?style=flat-square"></a>
+</p>
+
+<p align="center">
+  <a href="#nvidia-build--one-key-setup">NVIDIA Build</a> ·
+  <a href="#fastest-codex-setup">Codex Setup</a> ·
+  <a href="docs/complete-setup.md">Complete Setup Guide</a> ·
+  <a href="docs/routing-engine.md">Routing Engine</a> ·
+  <a href="docs/integrations.md">Integrations</a> ·
+  <a href="docs/roadmap.md">Roadmap</a>
+</p>
+
 > **One request. The right model. Automatically.**
 
 **AI Best Model Route** (ABMR) is an open-source, local-first AI model routing layer created as a spin-off of **OYYO AI Intelligence** by HRN Innovation Technologies.
@@ -13,6 +43,22 @@ The design goal is simple:
 This repository starts from the excellent Apache-2.0 `applyinnovations/bifrost-model-router` project and extends the concept from a Codex-oriented multi-provider bridge into an explainable best-model decision fabric. Bifrost remains the high-performance execution plane. ABMR adds the OYYO-derived decision layer.
 
 ---
+
+## NVIDIA Build — one-key setup
+
+Want the NVIDIA API Catalog available inside Codex without maintaining a model list by hand?
+
+```bash
+./scripts/setup-nvidia-build.sh
+```
+
+Paste your **NVIDIA API key** when prompted. The installer validates the key against NVIDIA's current model endpoint, configures the OpenAI-compatible NVIDIA Build provider at `integrate.api.nvidia.com`, enables account-aware model discovery, and installs AI Best Model Route locally.
+
+After Codex restarts, the NVIDIA models returned for **your API key** are exposed dynamically. You do not need to hard-code the NVIDIA catalog, and future account-visible models can appear without editing the router.
+
+> Automatic discovery means **access**, not an automatic quality endorsement. Newly discovered NVIDIA models are available for direct selection; only reviewed models with explicit routing metadata should participate in the `auto:*` decision engine.
+
+Full instructions: **[NVIDIA Build integration](docs/nvidia-build.md)**.
 
 ## Why this exists
 
@@ -508,6 +554,28 @@ This repository is an active OYYO AI Intelligence spin-off. The first milestone 
 Planned next layers include learned routing, online evaluation, dynamic price/performance feeds, provider-level SLOs, shadow traffic, model experiments, and richer enterprise policy.
 
 ---
+
+## OYYO open-source ecosystem
+
+AI Best Model Route is one part of the public OYYO AI Intelligence stack. Related repositories from **@vpicciuolo**:
+
+| Project | Purpose |
+| --- | --- |
+| [OYYO Models](https://github.com/vpicciuolo/oyyo-models) | OYYO model assets and model-related work |
+| [OYYO SDK](https://github.com/vpicciuolo/oyyo-sdk) | Developer-facing OYYO integration surface |
+| [OYYO Benchmark](https://github.com/vpicciuolo/oyyo-benchmark) | Evaluation and benchmarking work for models and routing |
+| [URL Intelligence Agent](https://github.com/vpicciuolo/url-intelligence-agent) | Open-source URL analysis / intelligence agent |
+
+<p>
+  <a href="https://github.com/vpicciuolo/oyyo-models"><img alt="OYYO Models" src="https://img.shields.io/badge/GitHub-OYYO%20Models-181717?style=flat-square&logo=github"></a>
+  <a href="https://github.com/vpicciuolo/oyyo-sdk"><img alt="OYYO SDK" src="https://img.shields.io/badge/GitHub-OYYO%20SDK-181717?style=flat-square&logo=github"></a>
+  <a href="https://github.com/vpicciuolo/oyyo-benchmark"><img alt="OYYO Benchmark" src="https://img.shields.io/badge/GitHub-OYYO%20Benchmark-181717?style=flat-square&logo=github"></a>
+  <a href="https://github.com/vpicciuolo/url-intelligence-agent"><img alt="URL Intelligence Agent" src="https://img.shields.io/badge/GitHub-URL%20Intelligence%20Agent-181717?style=flat-square&logo=github"></a>
+</p>
+
+**OYYO AI Intelligence:** https://oyyo.one  
+**HRN Innovation Technologies:** https://hrn.ae  
+**GitHub:** https://github.com/vpicciuolo
 
 ## Upstream and attribution
 
